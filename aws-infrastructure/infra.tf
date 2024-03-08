@@ -115,7 +115,7 @@ resource "aws_security_group" "ecs_sg" {
 resource "aws_lb" "alb" {
   name            = "${var.name}-alb"
   subnets         = module.vpc.public_subnets
-  security_groups = [module.alb_security_group.security_group_id]
+  security_groups = [aws_security_group.alb_sg.id]
 }
 
 # ~~~~~~~~~~~~~~~~ Create a target Group for the backend~~~~~~~~~~~~~~
@@ -312,28 +312,10 @@ resource "aws_ecs_task_definition" "service" {
       }
       environment = [
         {
-          name = "AWS_REGION"
-          value = var.region
-        },
-        {
-          name = "AWS_SDK_LOAD_CONFIG" # load config from ~/.aws
-          value = "1"
-        },
-        {
-          name = "NEXT_PUBLIC_API_URL"
+          name = "REACT_APP_API_URL"
           value = "http://${aws_lb.alb.dns_name}:${var.backend_port}"
         }
       ]
-         
-      logConfiguration = {
-        logDriver = "awslogs",
-        options = {
-          awslogs-create-group = "true"
-          awslogs-group = "/ecs/${var.name}"
-          awslogs-region = var.region
-          awslogs-stream-prefix = "frontend"
-        }
-      }
 
     },
     {
@@ -352,28 +334,12 @@ resource "aws_ecs_task_definition" "service" {
         interval = 300
       }
       environment = [
-        {
-          name = "AWS_REGION"
-          value = var.region
-        },
-        {
-          name = "AWS_SDK_LOAD_CONFIG" # load config from ~/.aws
-          value = "1"
-        },
          {
-          name = "URL"
+          name = "REACT_APP_ORIGIN"
           value = "http://${aws_lb.alb.dns_name}:${var.backend_port}"
         },
       ]
-      logConfiguration = {
-        logDriver = "awslogs",
-        options = {
-          awslogs-create-group = "true"
-          awslogs-group = "/ecs/${var.name}"
-          awslogs-region = var.region
-          awslogs-stream-prefix = "backend"
-        }
-      }
+      
     }
   ])
 
