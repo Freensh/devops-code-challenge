@@ -10,7 +10,7 @@ function App() {
     const getId = async () => {
       try {
         const resp = await fetch(API_URL)
-        setSuccessMessage((await resp.json()).id)
+        setSuccessMessage('SUCESS ' + (await resp.json()).id)
       }
       catch(e) {
         setFailureMessage(e.message)
