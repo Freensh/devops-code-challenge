@@ -4,7 +4,7 @@ pipeline {
     stages {
         stage ('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/Freensh/Node_app.git'
+                git branch: 'main', url: 'https://github.com/Arpakathy/devops-code-challenge.git'
             }
         }
 
