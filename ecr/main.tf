@@ -1,4 +1,3 @@
-
 terraform {
   required_providers {
     aws = {
@@ -13,6 +12,202 @@ terraform {
 provider "aws" {
   region = "${var.region}"
   
+}
+
+# ~~~~~~~~~~~~~~~~ Configure the Network ~~~~~~~~~~~~~~~~~~~~~ 
+module "vpc" {
+  source = "terraform-aws-modules/vpc/aws"
+
+  name             = var.project_name
+  cidr             = var.VPC_cidr
+  azs              = ["${var.AZ1}", "${var.AZ2}"]
+  private_subnets  = ["${var.subnet_priv1_cidr}", "${var.subnet_priv2_cidr}"]
+  public_subnets   = ["${var.subnet_pub1_cidr}", "${var.subnet_pub2_cidr}"]
+
+  # One NAT gateway per subnet and a single NAT for all of them
+  enable_nat_gateway = true
+  single_nat_gateway = true
+
+  # Enable DNS support and hostnames in the VPC
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+
+  private_subnet_tags = {
+    Tier = "Private"
+  }
+  public_subnet_tags = {
+    Tier = "Public"
+  }
+  tags = {
+    Project = "${var.project_name}"
+  }
+}
+
+# ~~~~~~~~~~~ Security group for the Frontend LoadBalancer ~~~~~~~~~~
+
+resource "aws_security_group" "frontend_sg" {
+
+  name        = "${var.frontend_app_name}-sg"
+  description = "Security group for ${var.frontend_app_name} ecs"
+  vpc_id      = module.vpc.vpc_id
+  ingress {
+    description = "allows connection from the internet"
+    from_port   = var.frontend_port
+    to_port     = var.frontend_port
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  
+  tags = {
+    Name = "${var.frontend_app_name}-sg"
+  }
+}
+
+# ~~~~~~~~~~~ Security group for the Backend LoadBalancer ~~~~~~~~~~
+
+resource "aws_security_group" "backend_sg" {
+
+  name        = "${var.backend_app_name}-sg"
+  description = "Security group for ${var.backend_app_name} ecs"
+  vpc_id      = module.vpc.vpc_id
+  ingress {
+    description = "allows inbound fron the front end"
+    from_port   = var.backend_port
+    to_port     = var.backend_port
+    protocol    = "tcp"
+    security_groups = [aws_security_group.frontend_sg.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  
+  tags = {
+    Name = "${var.backend_app_name}-sg"
+  }
+}
+# ~~~~~~~~~~~~~~~~ Create a Load Balancer for the frontend app ~~~~~~~~~~~~~~~~
+
+resource "aws_lb" "frontend_lb" {
+  name            = "${var.frontend_app_name}-lb"
+  subnets         = [module.vpc.public_subnets[0], module.vpc.public_subnets[1]]
+  security_groups = [aws_security_group.frontend_sg.id]
+}
+
+# ~~~~~~~~~~~~~~~~ Create a Load Balancer for the backend app ~~~~~~~~~~~~~~~~
+
+resource "aws_lb" "backend_lb" {
+  name            = "${var.backend_app_name}-lb"
+  subnets         = [module.vpc.public_subnets[0], module.vpc.public_subnets[1]]
+  security_groups = [aws_security_group.backend_sg.id]
+}
+
+# ~~~~~~~~~~~~~~~~ Create a target Group for the backend~~~~~~~~~~~~~~
+
+resource "aws_lb_target_group" "backend_target_group" {
+
+  name        = "${var.backend_app_name}-targets-group"
+  port        = var.backend_port
+  protocol    = "HTTP"
+  vpc_id      = module.vpc.vpc_id
+  target_type = "ip"
+
+
+}
+# ~~~~~~~~~~~~~~~~ Create a listener for the backend ~~~~~~~~~~~~~~~~
+
+resource "aws_lb_listener" "backend_listener" {
+
+  load_balancer_arn = aws_lb.backend_lb.arn
+  port              = var.backend_port
+  protocol          = "HTTP"
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend_target_group.arn
+  }
+}
+
+# ~~~~~~~~~~~~~~~~ Create a target Group for the frontend ~~~~~~~~~~~~~
+
+resource "aws_lb_target_group" "frontend_target_group" {
+
+  name        = "${var.frontend_app_name}-targets-group"
+  port        = var.frontend_port
+  protocol    = "HTTP"
+  vpc_id      = module.vpc.vpc_id
+  target_type = "ip"
+
+}
+
+# ~~~~~~~~~~~~~~~~ Create a listener for the frontend ~~~~~~~~~~~~~
+
+resource "aws_lb_listener" "frontend_listener" {
+
+  load_balancer_arn = aws_lb.frontend_lb.arn
+  port              = var.frontend_port
+  protocol          = "HTTP"
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.frontend_target_group.arn
+  }
+}
+
+# ~~~~~~~~~~~~~~~~ Create a ecr repository ~~~~~~~~~~~~~~~~~~~~~~~~
+
+resource "aws_ecr_repository" "backend_repository" {
+  name = "${var.backend_app_name}-repo"
+
+  image_scanning_configuration {
+    scan_on_push = false
+  }
+  
+  force_delete = true
+}
+resource "aws_ecr_repository" "frontend_repository" {
+  name = "${var.frontend_app_name}-repo"
+
+  image_scanning_configuration {
+    scan_on_push = false
+  }
+  
+  force_delete = true
+}
+# ~~~~~~~~~~~~~~~~~~ Create ECS EXECUTION Role ~~~~~~~~~~~~~~~~~~~~
+
+module "ecs_execution_role" {
+  source = "terraform-aws-modules/iam/aws//modules/iam-assumable-role"
+
+  create_role = true
+
+  role_requires_mfa = false
+
+  role_name = "${var.project_name}-ecs-execution-role"
+
+  trusted_role_services = [
+    "ecs-tasks.amazonaws.com"
+  ]
+
+  custom_role_policy_arns = [
+    "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+     "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess",
+  ]
+}
+
+# ~~~~~~~~~~~~~~~~~~~~~ Creating ECS Cluster ~~~~~~~~~~~~~~~~~~~~~~~
+
+resource "aws_ecs_cluster" "cluster" {
+  name = var.cluster_name
 }
 
 # ~~~~~~~~ Create the ECR Repository for the Frontend app ~~~~~~~~~
@@ -39,27 +234,6 @@ resource "aws_ecr_repository" "repository-backend" {
   force_delete = true
 }
 
-# ~~~~~~~~~~~~~~~~~~ Create ECS EXECUTION Role ~~~~~~~~~~~~~~~~~~~~
-
-module "ecs_execution_role" {
-  source = "terraform-aws-modules/iam/aws//modules/iam-assumable-role"
-
-  create_role = true
-
-  role_requires_mfa = false
-
-  role_name = "${var.project_name}-ecs-execution-role"
-
-  trusted_role_services = [
-    "ecs-tasks.amazonaws.com"
-  ]
-
-  custom_role_policy_arns = [
-    "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
-    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
-     "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess",
-  ]
-}
 
 # ~~~~~~~~~~~~~~~ Get the ID of the current aws account ~~~~~~~~~~~~~~
 

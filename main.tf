@@ -10,197 +10,83 @@ terraform {
 # Configure the AWS provider
 
 provider "aws" {
-  region = var.region
+  region = "${var.region}"
   
 }
-# ~~~~~~~~~~~~~~~~ Configure the Network ~~~~~~~~~~~~~~~~~~~~~ 
-module "vpc" {
-  source = "terraform-aws-modules/vpc/aws"
 
-  name             = var.project_name
-  cidr             = var.VPC_cidr
-  azs              = ["${var.AZ1}", "${var.AZ2}"]
-  private_subnets  = ["${var.subnet_priv1_cidr}", "${var.subnet_priv2_cidr}"]
-  public_subnets   = ["${var.subnet_pub1_cidr}", "${var.subnet_pub2_cidr}"]
+# ~~~~~~~~~~~~~~~~~~~~~ Getting the ECS Cluster ~~~~~~~~~~~~~~~~~~~~~~~
 
-  # One NAT gateway per subnet and a single NAT for all of them
-  enable_nat_gateway = true
-  single_nat_gateway = true
-
-  # Enable DNS support and hostnames in the VPC
-  enable_dns_support   = true
-  enable_dns_hostnames = true
-
-  private_subnet_tags = {
-    Tier = "Private"
-  }
-  public_subnet_tags = {
-    Tier = "Public"
-  }
-  tags = {
-    Project = "${var.project_name}"
-  }
-}
-
-# ~~~~~~~~~~~ Create the Security group for the Frontend LoadBalancer ~~~~~~~~~~
-
-resource "aws_security_group" "frontend_sg" {
-
-  name        = "${var.frontend_app_name}-sg"
-  description = "Security group for ${var.frontend_app_name} ecs"
-  vpc_id      = module.vpc.vpc_id
-  ingress {
-    description = "allows connection from the internet"
-    from_port   = var.frontend_port
-    to_port     = var.frontend_port
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+data "aws_ecs_cluster" "cluster" {
+    cluster_name = var.cluster_name
   
-  tags = {
-    Name = "${var.frontend_app_name}-sg"
-  }
 }
 
-# ~~~~~~~~~~~ Create the Security group for the Backend LoadBalancer ~~~~~~~~~~
 
-resource "aws_security_group" "backend_sg" {
+# ~~~~~~~~~~~~~~~~~~~~~ Getting network configuration ~~~~~~~~~~~~~~~~~~~~~~~
 
-  name        = "${var.backend_app_name}-sg"
-  description = "Security group for ${var.backend_app_name} ecs"
-  vpc_id      = module.vpc.vpc_id
-  ingress {
-    description = "allows inbound fron the frontend"
-    from_port   = var.backend_port
-    to_port     = var.backend_port
-    protocol    = "tcp"
-    security_groups = [aws_security_group.frontend_sg.id]
-  }
+data "aws_vpc" "project_vpc" {
+    filter {
+      name = "tag:Project"
+      values = ["${var.project_name}"]
+    }
+}
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+data "aws_security_group" "backend_sg" {
+    vpc_id = data.aws_vpc.project_vpc.id
+    name = "${var.backend_app_name}-sg"
   
-  tags = {
-    Name = "${var.backend_app_name}-sg"
-  }
 }
-# ~~~~~~~~~~~~~~~~ Create a Load Balancer for the frontend app ~~~~~~~~~~~~~~~~
-
-resource "aws_lb" "frontend_lb" {
-  name            = "${var.frontend_app_name}-lb"
-  subnets         = [module.vpc.public_subnets[0], module.vpc.public_subnets[1]]
-  security_groups = [aws_security_group.frontend_sg.id]
-}
-
-# ~~~~~~~~~~~~~~~~ Create a Load Balancer for the backend app ~~~~~~~~~~~~~~~~
-
-resource "aws_lb" "backend_lb" {
-  name            = "${var.backend_app_name}-lb"
-  subnets         = [module.vpc.public_subnets[0], module.vpc.public_subnets[1]]
-  security_groups = [aws_security_group.backend_sg.id]
-}
-
-# ~~~~~~~~~~~~~~~~ Create a target Group for the backend~~~~~~~~~~~~~~
-
-resource "aws_lb_target_group" "backend_target_group" {
-
-  name        = "${var.backend_app_name}-targets-group"
-  port        = var.backend_port
-  protocol    = "HTTP"
-  vpc_id      = module.vpc.vpc_id
-  target_type = "ip"
-
-
-}
-# ~~~~~~~~~~~~~~~~ Create a listener for the backend ~~~~~~~~~~~~~~~~
-
-resource "aws_lb_listener" "backend_listener" {
-
-  load_balancer_arn = aws_lb.backend_lb.arn
-  port              = var.backend_port
-  protocol          = "HTTP"
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.backend_target_group.arn
-  }
-}
-
-# ~~~~~~~~~~~~~~~~ Create a target Group for the frontend ~~~~~~~~~~~~~
-
-resource "aws_lb_target_group" "frontend_target_group" {
-
-  name        = "${var.frontend_app_name}-targets-group"
-  port        = var.frontend_port
-  protocol    = "HTTP"
-  vpc_id      = module.vpc.vpc_id
-  target_type = "ip"
-
-}
-
-# ~~~~~~~~~~~~~~~~ Create a listener for the frontend ~~~~~~~~~~~~~
-
-resource "aws_lb_listener" "frontend_listener" {
-
-  load_balancer_arn = aws_lb.frontend_lb.arn
-  port              = var.frontend_port
-  protocol          = "HTTP"
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.frontend_target_group.arn
-  }
-}
-
-# ~~~~~~~~~~~~~~~~ Create a ecr repository ~~~~~~~~~~~~~~~~~~~~~~~~
-
-resource "aws_ecr_repository" "backend_repository" {
-  name = "${var.backend_app_name}-repo"
-
-  image_scanning_configuration {
-    scan_on_push = false
-  }
+data "aws_security_group" "frontend_sg" {
+    vpc_id = data.aws_vpc.project_vpc.id
+    name = "${var.frontend_app_name}-sg"
   
-  force_delete = true
 }
-resource "aws_ecr_repository" "frontend_repository" {
-  name = "${var.frontend_app_name}-repo"
-
-  image_scanning_configuration {
-    scan_on_push = false
+data "aws_subnet" "public1" {
+  filter {
+    name   = "tag:Name"
+    values = ["${var.project_name}-public-us-east-2a"]
   }
-  
-  force_delete = true
+}
+data "aws_subnet" "public2" {
+  filter {
+    name   = "tag:Name"
+    values = ["${var.project_name}-public-us-east-2b"]
+  }
 }
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Creating ECS Cluster ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~ Getting LoadBalancer ~~~~~~~~~~~~~~~~~~~~~~~
 
-resource "aws_ecs_cluster" "cluster" {
-  name = var.cluster_name
+data "aws_alb" "backend_lb" {
+    name = "${var.backend_app_name}-lb" 
 }
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~ Getting ecr repository ~~~~~~~~~~~~~~~~~~~~~~~~~~
+data "aws_alb" "frontend_lb" {
+    name = "${var.frontend_app_name}-lb" 
+}
+
+# ~~~~~~~~~~~~~~~~ Getting target Groups~~~~~~~~~~~~~~
+data "aws_alb_target_group" "backend_tg" {
+    name = "${var.backend_app_name}-targets-group"
+}
+
+data "aws_alb_target_group" "frontend_tg" {
+    name = "${var.frontend_app_name}-targets-group"
+}
+
+# ~~~~~~~~~~~~~~~~ Getting ecr repository~~~~~~~~~~~~~~
 data "aws_ecr_repository" "back_repo" {
     name = "${var.backend_app_name}-repo"
 }
 data "aws_ecr_repository" "front_repo" {
     name = "${var.frontend_app_name}-repo"
 }
+
 data "aws_iam_role" "execution_role" {
   name = "${var.project_name}-ecs-execution-role"
 }
 
-# ~~~~~~~~~~~~ Creating ECS Task Definition for the backend services ~~~~~~~~~
+# ~~~~~~~~~~~~ Creating ECS Task Definition for the backend services~~~~~~~~~
 resource "aws_ecs_task_definition" "backend_task_definition" {
     family = var.backend_app_name
     network_mode = "awsvpc"
@@ -225,7 +111,7 @@ resource "aws_ecs_task_definition" "backend_task_definition" {
             "environment": [
                 {
                     "name": "REACT_APP_ORIGIN",
-                    "value": "http://${aws_lb.frontend_lb.dns_name}:${var.frontend_port}"
+                    "value": "http://${data.aws_alb.frontend_lb.dns_name}:${var.frontend_port}"
                 }
             ]
         }
@@ -239,19 +125,19 @@ resource "aws_ecs_task_definition" "backend_task_definition" {
 
 resource "aws_ecs_service" "backend_svc" {
     name = "${var.backend_app_name}-svc"
-    cluster = aws_ecs_cluster.cluster.id
+    cluster = data.aws_ecs_cluster.cluster.id
     launch_type = "FARGATE"
     task_definition = aws_ecs_task_definition.backend_task_definition.arn
     desired_count = 4
 
     network_configuration {
-      security_groups = [ aws_security_group.backend_sg.id]
-      subnets = [module.vpc.public_subnets[0], module.vpc.public_subnets[1]]
+      security_groups = [ data.aws_security_group.backend_sg.id]
+      subnets = [data.aws_subnet.public1.id, data.aws_subnet.public2.id]
       assign_public_ip = true
     }
 
     load_balancer {
-      target_group_arn = aws_lb_target_group.backend_target_group.arn
+      target_group_arn = data.aws_alb_target_group.backend_tg.id
       container_name = var.backend_app_name
       container_port = var.backend_port
       
@@ -284,7 +170,7 @@ resource "aws_ecs_task_definition" "frontend_task_definition" {
             "environment": [
                 {
                     "name": "REACT_APP_API_URL",
-                    "value": "http://${aws_lb.backend_lb.dns_name}:${var.backend_port}/"
+                    "value": "http://${data.aws_alb.backend_lb.dns_name}:${var.backend_port}/"
                 }
             ]
         }
@@ -298,21 +184,21 @@ resource "aws_ecs_task_definition" "frontend_task_definition" {
 
 resource "aws_ecs_service" "frontend_svc" {
     name = var.frontend_app_name
-    cluster = aws_ecs_cluster.cluster.id
+    cluster = data.aws_ecs_cluster.cluster.id
     launch_type = "FARGATE"
     task_definition = aws_ecs_task_definition.frontend_task_definition.arn
     desired_count = 4
 
     network_configuration {
-      security_groups = [ aws_security_group.frontend_sg.id ]
-      subnets         = [module.vpc.public_subnets[0], module.vpc.public_subnets[1]]
+      security_groups = [data.aws_security_group.frontend_sg.id ]
+      subnets = [data.aws_subnet.public1.id, data.aws_subnet.public2.id]
+      assign_public_ip = true
     }
 
     load_balancer {
-      target_group_arn = aws_lb_target_group.frontend_target_group.arn
-      container_name   = var.frontend_app_name
-      container_port   = 8080
+      target_group_arn = data.aws_alb_target_group.frontend_tg.id
+      container_name = var.frontend_app_name
+      container_port = var.frontend_port
     }
   
 }
-
