@@ -162,26 +162,6 @@ resource "aws_lb_listener" "frontend_listener" {
   }
 }
 
-# ~~~~~~~~~~~~~~~~ Create a ecr repository ~~~~~~~~~~~~~~~~~~~~~~~~
-
-resource "aws_ecr_repository" "backend_repository" {
-  name = "${var.backend_app_name}-repo"
-
-  image_scanning_configuration {
-    scan_on_push = false
-  }
-  
-  force_delete = true
-}
-resource "aws_ecr_repository" "frontend_repository" {
-  name = "${var.frontend_app_name}-repo"
-
-  image_scanning_configuration {
-    scan_on_push = false
-  }
-  
-  force_delete = true
-}
 # ~~~~~~~~~~~~~~~~~~ Create ECS EXECUTION Role ~~~~~~~~~~~~~~~~~~~~
 
 module "ecs_execution_role" {
@@ -325,9 +305,7 @@ resource "null_resource" "clean-up-images" {
          ]
 	  }
 	
-  
 }
-
 
 output "INFO" {
   value = "AWS Resources  has been provisioned. Go to ${aws_ecr_repository.repository-backend.repository_url} and ${aws_ecr_repository.repository-frontend.repository_url}"
