@@ -7,6 +7,7 @@ pipeline {
                 git branch: 'main', url: 'https://github.com/Arpakathy/devops-code-challenge.git'
             }
         }
+
         stage ('Destroy the infrastructure'){
             steps{
                 sh '''
@@ -15,6 +16,7 @@ pipeline {
                 terraform destroy -auto-approve
                 '''
             }
+        }    
         stage ('Build and push backend and frontend images to ECR'){
             steps {
                 sh '''
@@ -37,5 +39,4 @@ pipeline {
             }
         }
     }
-}
 }
