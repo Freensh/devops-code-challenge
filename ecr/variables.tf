@@ -14,11 +14,6 @@ variable "project_name" {
     type = string
     default = "Challenge-node-app"
 }
-variable "region" {
-  type = string
-  default = "us-east-2"
-}
-
 variable "VPC_cidr" {
   type = string
   default = "10.10.0.0/16" 
@@ -62,10 +57,6 @@ variable "image_tag" {
 variable "cluster_name" {
     type = string
     default = "Challenge"
-}
-variable "project_name" {
-    type = string
-    default = "Challenge-node-app"
 }
 variable "backend_port" {
     description = "port of the backend app"
