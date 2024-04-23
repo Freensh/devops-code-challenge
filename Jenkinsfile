@@ -2,22 +2,7 @@ pipeline {
     agent any
 
     stages {
-        stage ('Checkout') {
-            steps {
-                git branch: 'main', url: 'https://github.com/Arpakathy/devops-code-challenge.git'
-            }
-        }
-
-        stage ('Destroy the infrastructure'){
-            steps{
-                sh '''
-                terraform destroy -auto-approve
-                cd ecr
-                terraform destroy -auto-approve
-                '''
-            }
-        }    
-
+       
         stage ('Build and push backend and frontend images to ECR'){
             steps {
                 sh '''
