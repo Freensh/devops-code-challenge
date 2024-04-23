@@ -10,3 +10,7 @@ variable "backend_app_name" {
   type = string
   default = "node-backend" 
 }
+variable "project_name" {
+    type = string
+    default = "Challenge-node-app"
+}
