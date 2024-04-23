@@ -181,27 +181,7 @@ resource "aws_ecr_repository" "frontend_repository" {
   
   force_delete = true
 }
-# ~~~~~~~~~~~~~~~~~~ Create ECS EXECUTION Role ~~~~~~~~~~~~~~~~~~~~
 
-module "ecs_execution_role" {
-  source = "terraform-aws-modules/iam/aws//modules/iam-assumable-role"
-
-  create_role = true
-
-  role_requires_mfa = false
-
-  role_name = "${var.project_name}-ecs-execution-role"
-
-  trusted_role_services = [
-    "ecs-tasks.amazonaws.com"
-  ]
-
-  custom_role_policy_arns = [
-    "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
-    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
-     "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess",
-  ]
-}
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Creating ECS Cluster ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -216,11 +196,15 @@ data "aws_ecr_repository" "back_repo" {
 data "aws_ecr_repository" "front_repo" {
     name = "${var.frontend_app_name}-repo"
 }
+data "aws_iam_role" "execution_role" {
+  name = "${var.project_name}-ecs-execution-role"
+}
+
 # ~~~~~~~~~~~~ Creating ECS Task Definition for the backend services ~~~~~~~~~
 resource "aws_ecs_task_definition" "backend_task_definition" {
     family = var.backend_app_name
     network_mode = "awsvpc"
-    execution_role_arn = module.ecs_execution_role.arn
+    execution_role_arn = data.aws_iam_role.execution_role.arn
     requires_compatibilities = ["FARGATE"]
     cpu = var.cpu
     memory = var.memory

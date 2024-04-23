@@ -39,6 +39,28 @@ resource "aws_ecr_repository" "repository-backend" {
   force_delete = true
 }
 
+# ~~~~~~~~~~~~~~~~~~ Create ECS EXECUTION Role ~~~~~~~~~~~~~~~~~~~~
+
+module "ecs_execution_role" {
+  source = "terraform-aws-modules/iam/aws//modules/iam-assumable-role"
+
+  create_role = true
+
+  role_requires_mfa = false
+
+  role_name = "${var.project_name}-ecs-execution-role"
+
+  trusted_role_services = [
+    "ecs-tasks.amazonaws.com"
+  ]
+
+  custom_role_policy_arns = [
+    "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+     "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess",
+  ]
+}
+
 # ~~~~~~~~~~~~~~~ Get the ID of the current aws account ~~~~~~~~~~~~~~
 
 data "aws_caller_identity" "current" {}
