@@ -2,7 +2,6 @@ variable "region" {
   type = string
   default = "us-east-2"
 }
-
 variable "VPC_cidr" {
   type = string
   default = "10.10.0.0/16" 
