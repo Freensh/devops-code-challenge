@@ -72,7 +72,7 @@ variable "frontend_port" {
 variable "health_check" {
   type = map(string)
   default = {
-    "timeout"             = "10"
+    "timeout"             = "35"
     "interval"            = "20"
     "path"                = "/"
     "port"                = "8080"
