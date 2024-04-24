@@ -223,7 +223,7 @@ locals {
   ecr-login             = "aws ecr get-login-password --region ${var.region} | docker login --username AWS --password-stdin ${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
   docker-build-frontend = "docker build -t ${aws_ecr_repository.repository-frontend.repository_url}:latest frontend"
   docker-push-frontend  = "docker push ${aws_ecr_repository.repository-frontend.repository_url}:latest"
-  docker-build-backend  = "docker build -t ${aws_ecr_repository.repository-backend.repository_url}:latest frontend"
+  docker-build-backend  = "docker build -t ${aws_ecr_repository.repository-backend.repository_url}:latest backend"
   docker-push-backend   = "docker push ${aws_ecr_repository.repository-backend.repository_url}:latest"
 }
 
