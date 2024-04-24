@@ -127,7 +127,6 @@ resource "aws_lb_target_group" "backend_target_group" {
     unhealthy_threshold = var.health_check["unhealthy_threshold"]
     timeout             = var.health_check["timeout"]
     path                = var.health_check["path"]
-    port                = var.health_check["port"]
   }
 
 }

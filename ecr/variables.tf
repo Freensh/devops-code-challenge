@@ -73,7 +73,7 @@ variable "health_check" {
   type = map(string)
   default = {
     "timeout"             = "20"
-    "interval"            = "25"
+    "interval"            = "35"
     "path"                = "/"
     "port"                = "8080"
     "protocol"            = "http"
