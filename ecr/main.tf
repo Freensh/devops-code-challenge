@@ -121,14 +121,6 @@ resource "aws_lb_target_group" "backend_target_group" {
   protocol    = "HTTP"
   vpc_id      = module.vpc.vpc_id
   target_type = "ip"
-   health_check {
-    healthy_threshold   = var.health_check["healthy_threshold"]
-    interval            = var.health_check["interval"]
-    unhealthy_threshold = var.health_check["unhealthy_threshold"]
-    timeout             = var.health_check["timeout"]
-    path                = var.health_check["path"]
-  }
-
 }
 # ~~~~~~~~~~~~~~~~ Create a listener for the backend ~~~~~~~~~~~~~~~~
 
