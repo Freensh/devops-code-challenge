@@ -4,6 +4,8 @@ WORKDIR /home/node/app
 COPY --chown=node:node package*.json ./
 USER node
 ENV REACT_APP_ORIGIN ${REACT_APP_ORIGIN:-'http://localhost:3000'}
+RUN npm install
+COPY --chown=node:node . .
 EXPOSE 8080
 
 CMD [ "node", "index.js" ]
