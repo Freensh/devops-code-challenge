@@ -1,6 +1,7 @@
 pipeline {
-    agent any  
+    agent any
 
+    stages {
         stage ('Build and push backend and frontend images to ECR'){
             steps {
                 sh '''
@@ -23,4 +24,5 @@ pipeline {
                 sh 'terraform apply --auto-approve'
             }
         }
+    }
 }
